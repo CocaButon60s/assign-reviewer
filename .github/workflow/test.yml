@@ -1,0 +1,38 @@
+name: Assign Reviewer
+on:
+  workflow_dispatch:
+    inputs:
+      MODE:
+        description: "assign,add,remove"
+        required: true
+      USER:
+        required: true
+      DECAY_RATE:
+        default: 0.2
+
+jobs:
+  add-reviewer:
+    if: ${{ inputs.MODE == 'add' }}
+    runs-on: ubuntu-latest
+    permissoions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          MODE: add
+          USER: ${{ inputs.USER }}
+          DECAY_RATE: ${{ inputs.DECAY_RATE }}
+
+  remove-reviewer:
+    if: ${{ inputs.MODE == 'remove' }}
+    runs-on: ubuntu-latest
+    permissoions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
+        with:
+          MODE: remove
+          USER: ${{ inputs.USER }}
+          DECAY_RATE: ${{ inputs.DECAY_RATE }}
