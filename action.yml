@@ -2,15 +2,12 @@ name: Assign Reviewer
 description: Automatically assign a reviewer to a pull request.
 
 inputs:
-  MODE:
-    description: "assign,add,remove"
-    required: true
-  USER:
-    required: true
   GITHUB_TOKEN:
     required: false
   DECAY_RATE:
     default: 0.2
+  ASSIGN_COUNT:
+    default: 1
 
 runs:
   using: composite
@@ -24,31 +21,51 @@ runs:
         python-version: "3.14"
 
     - name: Add Reviewer
-      if: ${{ inputs.MODE == 'add' }}
+      if: ${{ github.event.action == 'review_requested'
+        && github.event.sender.login != 'github-actions[bot]'
+        && github.event.requested_reviewer.login != 'github-copilot[bot]' }}
       env:
         GITHUB_ACTION_PATH: ${{ github.action_path }}
-        ADD_USER: ${{ inputs.USER }}
+        ADD_USER: ${{ github.event.requested_reviewer.login }}
       shell: bash
       working-directory: ./db
-      run: |
-        python ${GITHUB_ACTION_PATH}/add.py
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add tmp.json
-        git commit -m "Update weight"
-        git push origin db
+      run: python ${GITHUB_ACTION_PATH}/add.py
 
     - name: Remove Reviewer
-      if: ${{ inputs.MODE == 'remove' }}
+      if: ${{ github.event.action == 'review_request_removed'
+        && github.event.requested_reviewer.login != 'github-copilot[bot]' }}
       env:
         GITHUB_ACTION_PATH: ${{ github.action_path }}
-        REMOVE_USER: ${{ inputs.USER }}
+        REMOVE_USER: ${{ github.event.requested_reviewer.login }}
+      shell: bash
+      working-directory: ./db
+      run: python ${GITHUB_ACTION_PATH}/remove.py
+
+    - name: Assign Reviewer
+      if: ${{ github.event.action == 'opened' }}
+      env:
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        ASSIGN_COUNT: ${{ inputs.ASSIGN_COUNT }}
+        DECAY_RATE: ${{ inputs.DECAY_RATE }}
+
+        PULL_REQUEST_USER: ${{ github.event.pull_request.user.login }}
+        SENDER_USER: ${{ github.event.sender.login }}
+        GITHUB_ACTION_PATH: ${{ github.action_path }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+      shell: bash
+      working-directory: ./db
+      run: |
+        export AUTHOR=$([ "${PULL_REQUEST_USER}" = "github-copilot[bot]" ] && echo "${SENDER_USER}" || echo "${PULL_REQUEST_USER}")
+        pip install numpy requests
+        python ${GITHUB_ACTION_PATH}/assign.py
+
+    - name: Commit
       working-directory: ./db
       shell: bash
       run: |
-        python ${GITHUB_ACTION_PATH}/remove.py
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add tmp.json
-        git commit -m "Update weight"
+        git diff --cached --quiet || git commit -m "Update weight"
         git push origin db

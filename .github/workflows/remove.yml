@@ -1,0 +1,17 @@
+name: Remove Reviewer
+on:
+  pull_request:
+    types: [review_request_removed]
+
+concurrency:
+  group: reviewer-weights-lock
+  cancel-in-progress: false
+
+jobs:
+  remove-reviewer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./
